@@ -23,10 +23,10 @@ const client = new Client({
 // CONFIGURATION DES IDENTIFIANTS (IDs)
 // ==========================================
 const CONFIG = {
-    roleReglement: "1251624647395016734",      // ID du rôle Membre validé
-    salonReglement: "1251622359486201948",     // ID du salon Règlement
-    categorieTickets: "1251624647395016735",   // ID de la catégorie où créer les tickets
-    roleStaff: "1251624647395016736"           // ID du rôle Staff/Vendeur pour voir les tickets
+    roleReglement: "1517222647958732861",      // ID du rôle Membre validé
+    salonReglement: "1465392062227546236",     // ID du salon Règlement
+    categorieTickets: "1465393346892795905",   // ID de la catégorie où créer les tickets
+    roleStaff: "1465396190395764838"           // ID du rôle Staff/Vendeur pour voir les tickets
 };
 
 // ==========================================
