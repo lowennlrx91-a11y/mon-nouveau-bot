@@ -46,7 +46,36 @@ client.once('ready', async () => {
     console.log(`✅ Vortex Bot connecté avec succès : ${client.user.tag}`);
     client.user.setActivity('Nova-Life: Amboise Mappings', { type: 3 });
     await initialiserReglement();
+    await initialiserSalonStaff();
 });
+
+// ==========================================
+// CRÉATION AUTOMATIQUE DU SALON DE VALIDATION STAFF
+// ==========================================
+async function initialiserSalonStaff() {
+    try {
+        const guild = client.guilds.cache.first();
+        if (!guild) return;
+
+        // On cherche si le salon de gestion existe déjà
+        let staffChannel = guild.channels.cache.find(c => c.name === "🔒-demandes-tickets");
+
+        if (!staffChannel) {
+            staffChannel = await guild.channels.create({
+                name: "🔒-demandes-tickets",
+                type: ChannelType.GuildText,
+                parent: CONFIG.categorieTickets,
+                permissionOverwrites: [
+                    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, // Invisible pour tout le monde
+                    { id: CONFIG.roleStaff, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] } // Uniquement Staff
+                ]
+            });
+            console.log("➡️ Salon secret de gestion des tickets créé avec succès !");
+        }
+    } catch (error) {
+        console.error("Erreur lors de la création du salon staff :", error);
+    }
+}
 
 // ==========================================
 // FONCTIONNALITÉ 1 : RÈGLEMENT PROFESSIONNEL
@@ -112,12 +141,12 @@ client.on('messageCreate', async (message) => {
         
         const embed = new EmbedBuilder()
             .setColor('#5865F2')
-            .setTitle('📦 CENTRE DE SUPPORT & COMMANDES')
+            .setTitle('📦 CENTRE DE SUPPORT & COMMANDES MAPPING')
             .setDescription(
-                'Bienvenue sur notre plateforme d\'assistance ! Vous souhaitez concrétiser un projet ou rejoindre notre équipe ?\n\n' +
-                '🔹 **Acheter un Mapping :** Demandez une création ou modification exclusive pour *Nova-Life: Amboise*.\n' +
-                '🔹 **Effectuer un Paiement :** Finalisez et sécurisez vos transactions avec notre équipe commerciale.\n' +
-                '🔹 **Devenir Mappeur :** Déposez votre candidature pour intégrer notre équipe technique.\n\n' +
+                'Bienvenue sur notre plateforme d\'assistance ! Vous souhaitez concrétiser un projet de mapping Nova-Life ou rejoindre notre équipe ?\n\n' +
+                '🔹 **🛒 Acheter un Mapping :** Commandez une structure exclusive (Concession, QG Gendarmerie/Sapeurs-Pompiers, Garage, Villa VIP).\n' +
+                '🔹 **💳 Effectuer un Paiement :** Finalisez et sécurisez vos transactions avec notre équipe commerciale.\n' +
+                '🔹 **🛠️ Devenir Mappeur :** Déposez votre candidature et présentez vos créations pour intégrer l\'équipe.\n\n' +
                 '👇 *Cliquez sur le bouton ci-dessous pour formuler une demande d\'ouverture de ticket.*'
             )
             .setFooter({ text: 'Weslé Auto & Mappings • Traitement automatisé', iconURL: client.user.displayAvatarURL() });
@@ -135,18 +164,17 @@ client.on('messageCreate', async (message) => {
 });
 
 // ==========================================
-// INTERACTION MANAGEMENT
+// MANAGEMENT DES INTERACTIONS (BOUTONS & MENUS)
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
     
-    // --- PARTIE 1 : BOUTONS GLOBAUX ---
     if (interaction.isButton()) {
         
-        // Validation Règlement
+        // Clic acceptation règlement
         if (interaction.customId === 'accept_rules') {
             await interaction.deferReply({ ephemeral: true });
             const role = interaction.guild.roles.cache.get(CONFIG.roleReglement);
-            if (!role) return interaction.editReply({ content: "❌ Erreur : Rôle de validation introuvable." });
+            if (!role) return interaction.editReply({ content: "❌ Erreur : Rôle introuvable." });
 
             if (interaction.member.roles.cache.has(CONFIG.roleReglement)) {
                 return interaction.editReply({ content: "ℹ️ Vous possédez déjà le statut de membre validé !" });
@@ -156,7 +184,7 @@ client.on('interactionCreate', async (interaction) => {
                 await interaction.member.roles.add(role);
                 return interaction.editReply({ content: "✨ **Règlement accepté !** Vos accès viennent d'être activés. Bienvenue parmi nous !" });
             } catch (err) {
-                return interaction.editReply({ content: "❌ Le bot n'a pas les permissions nécessaires pour vous accorder ce rôle." });
+                return interaction.editReply({ content: "❌ Permissions insuffisantes pour attribuer le rôle." });
             }
         }
 
@@ -189,46 +217,51 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.editReply({ content: '📊 **Veuillez qualifier votre demande à l\'aide du menu ci-dessous :**', components: [row] });
         }
 
-        // Action Staff : Validation et création du ticket réel
+        // Action Staff : APPROBATION DU TICKET (Depuis le salon secret)
         if (interaction.customId.startsWith('staff_approve_')) {
             const ticketId = interaction.customId.replace('staff_approve_', '');
             const data = pendingTickets.get(ticketId);
 
             if (!data) return interaction.reply({ content: '❌ Cette demande a expiré ou a déjà été traitée.', ephemeral: true });
             
-            // Sécurité : Seul le staff peut valider
             if (!interaction.member.roles.cache.has(CONFIG.roleStaff) && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.reply({ content: '❌ Seul le personnel autorisé peut valider les demandes.', ephemeral: true });
+                return interaction.reply({ content: '❌ Seul le staff peut valider les demandes.', ephemeral: true });
             }
 
             await interaction.deferUpdate();
             pendingTickets.delete(ticketId);
-
-            // Suppression du message de demande d'approbation
             await interaction.message.delete().catch(() => {});
 
             try {
-                // Création du salon de ticket final
+                // Création du salon de ticket physique avec STRICTES PERMISSIONS
                 const ticketChannel = await interaction.guild.channels.create({
                     name: data.channelName,
                     type: ChannelType.GuildText,
                     parent: CONFIG.categorieTickets,
                     permissionOverwrites: [
-                        { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
-                        { id: data.userId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
-                        { id: CONFIG.roleStaff, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
+                        { 
+                            id: interaction.guild.id, 
+                            deny: [PermissionFlagsBits.ViewChannel] // REND LE SALON TOTALEMENT INVISIBLE POUR TOUS LES AUTRES ROLES
+                        },
+                        { 
+                            id: data.userId, 
+                            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] // Uniquement le client
+                        },
+                        { 
+                            id: CONFIG.roleStaff, 
+                            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] // Uniquement le staff
+                        }
                     ],
                 });
 
                 const infoEmbed = new EmbedBuilder()
                     .setColor(data.color)
                     .setTitle(data.title)
-                    .setDescription(`${data.description}\n\n⚙️ **Outils de Gestion du Staff :**\n👤 Utilisez les boutons ci-dessous pour ajouter/retirer un utilisateur externe du ticket si nécessaire.`)
-                    .setFooter({ text: 'Fermeture complète via le bouton rouge sécurisé.' });
+                    .setDescription(`${data.description}\n\n🛠️ **Commandes Rapides de gestion :**\n👤 \`+add @Pseudo\` ou \`+add ID_du_Rôle\`\n❌ \`-remove @Pseudo\` ou \`-remove ID_du_Rôle\``)
+                    .setFooter({ text: 'Système de gestion sécurisé Vortex' });
 
                 const actionRow = new ActionRowBuilder().addComponents(
-                    new ButtonBuilder().setCustomId(`ticket_add_user`).setLabel('Ajouter Membre').setStyle(ButtonStyle.Secondary).setEmoji('➕'),
-                    new ButtonBuilder().setCustomId(`ticket_remove_user`).setLabel('Retirer Membre').setStyle(ButtonStyle.Secondary).setEmoji('➖'),
+                    new ButtonBuilder().setCustomId(`ticket_add_user`).setLabel('Ajouter').setStyle(ButtonStyle.Secondary).setEmoji('➕'),
                     new ButtonBuilder().setCustomId('close_ticket').setLabel('Fermer le ticket').setStyle(ButtonStyle.Danger).setEmoji('🔒')
                 );
 
@@ -236,11 +269,10 @@ client.on('interactionCreate', async (interaction) => {
 
             } catch (error) {
                 console.error(error);
-                return interaction.followUp({ content: "❌ Échec de la création physique du salon. Vérifiez les droits sur la catégorie.", ephemeral: true });
             }
         }
 
-        // Action Staff : Refus de la demande
+        // Action Staff : REFUS DU TICKET
         if (interaction.customId.startsWith('staff_deny_')) {
             const ticketId = interaction.customId.replace('staff_deny_', '');
             if (!interaction.member.roles.cache.has(CONFIG.roleStaff) && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
@@ -248,10 +280,10 @@ client.on('interactionCreate', async (interaction) => {
             }
             pendingTickets.delete(ticketId);
             await interaction.message.delete().catch(() => {});
-            return interaction.reply({ content: '🗑️ Demande de ticket rejetée et supprimée.', ephemeral: true });
+            return interaction.reply({ content: '🗑️ Demande de ticket rejetée.', ephemeral: true });
         }
 
-        // Action Interne au Ticket : Fermeture
+        // Action : Fermeture définitive du ticket
         if (interaction.customId === 'close_ticket') {
             await interaction.reply({ content: '🔒 **Fermeture demandée.** Suppression définitive de ce salon dans 5 secondes...' });
             setTimeout(async () => {
@@ -259,20 +291,14 @@ client.on('interactionCreate', async (interaction) => {
             }, 5000);
         }
 
-        // Action Interne au Ticket : Demander à ajouter un membre
+        // Bouton d'aide pour l'ajout
         if (interaction.customId === 'ticket_add_user') {
             if (!interaction.member.roles.cache.has(CONFIG.roleStaff)) return interaction.reply({ content: '❌ Action réservée au Staff.', ephemeral: true });
-            return interaction.reply({ content: '💡 Pour ajouter quelqu\'un, écrivez simplement : `+add @Pseudo` dans le chat.', ephemeral: true });
-        }
-
-        // Action Interne au Ticket : Demander à retirer un membre
-        if (interaction.customId === 'ticket_remove_user') {
-            if (!interaction.member.roles.cache.has(CONFIG.roleStaff)) return interaction.reply({ content: '❌ Action réservée au Staff.', ephemeral: true });
-            return interaction.reply({ content: '💡 Pour exclure quelqu\'un, écrivez simplement : `-remove @Pseudo` dans le chat.', ephemeral: true });
+            return interaction.reply({ content: '💡 Pour ajouter un joueur ou un rôle, écris simplement : `+add @Nom` ou `+add ID_du_Rôle` dans ce salon.', ephemeral: true });
         }
     }
 
-    // --- PARTIE 2 : MENU DÉROULANT (CRÉATION DE LA DEMANDE) ---
+    // --- PARTIE 2 : TRAITEMENT DE LA SÉLECTION DANS LE MENU ---
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_type') {
         const choice = interaction.values[0];
         let prefix = "ticket";
@@ -282,18 +308,18 @@ client.on('interactionCreate', async (interaction) => {
 
         if (choice === 'ticket_mapping') {
             prefix = "🛒-mapping";
-            title = "🛒 Commande de Mapping - Nova-Life";
-            description = `Bonjour <@${interaction.user.id}>,\n\nMerci de détailler votre projet de mapping :\n1️⃣ Quel type de structure souhaitez-vous modifier ou implanter ?\n2️⃣ Possédez-vous des textures sur-mesure (ex: fibre de carbone, enseignes spécifiques) ?`;
+            title = "🛒 Commande de Mapping - Nova-Life: Amboise";
+            description = `Bonjour <@${interaction.user.id}>,\n\nMerci de détailler au maximum votre demande pour nos mappeurs :\n\n📌 **Type de projet :** (Concession, Gendarmerie, Habitation VIP...)\n🎨 **Textures personnalisées souhaitées :** (Fibre de carbone, logos de marques, enseignes de nuit...)\n⚡ **Optimisation :** Souhaitez-vous une structure allégée par chunks (Fast Loading PC) ?`;
             color = "#ffd700";
         } else if (choice === 'ticket_paiement') {
             prefix = "💳-paiement";
             title = "💳 Service de Paiement & Facturation";
-            description = `Bonjour <@${interaction.user.id}>,\n\nPour finaliser votre achat :\n• Rappelez l'intitulé de la commande et le tarif validé.\n• Un agent commercial va prendre le relais pour l'envoi des coordonnées de paiement.`;
+            description = `Bonjour <@${interaction.user.id}>,\n\nPour procéder à la facturation de votre mapping :\n• Veuillez rappeler la commande concernée et le tarif conclu.\n• Un membre du pôle commercial va vous transmettre les liens de paiement officiels.`;
             color = "#2ecc71";
         } else if (choice === 'ticket_recrutement') {
             prefix = "🛠️-recrutement";
-            title = "🛠️ Recrutement • Pôle Technique";
-            description = `Bonjour <@${interaction.user.id}>,\n\nMerci de soumettre votre intérêt pour rejoindre l'équipe :\n• Joignez des aperçus de vos anciennes conceptions ou portfolios.\n• Présentez brièvement vos motivations.`;
+            title = "🛠️ Recrutement • Équipe Technique Mappings";
+            description = `Bonjour <@${interaction.user.id}>,\n\nMerci de l'intérêt porté à notre équipe !\n• Veuillez envoyer des images/vidéos de vos anciens mappings.\n• Indiquez vos motivations et vos disponibilités.`;
             color = "#3498db";
         }
 
@@ -305,7 +331,7 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.reply({ content: `❌ Vous possédez déjà un espace ouvert pour cette demande : ${existing}`, ephemeral: true });
         }
 
-        // Génération de la demande pour le staff
+        // Génération de l'identifiant unique de demande
         const ticketId = `${interaction.user.id}-${Date.now()}`;
         pendingTickets.set(ticketId, {
             userId: interaction.user.id,
@@ -315,11 +341,14 @@ client.on('interactionCreate', async (interaction) => {
             color
         });
 
-        // Alerte dans le salon actuel (reçu uniquement par le staff)
+        // Envoi de l'alerte DANS LE SALON SECRET DU STAFF
+        const guild = interaction.guild;
+        const staffChannel = guild.channels.cache.find(c => c.name === "🔒-demandes-tickets");
+
         const staffEmbed = new EmbedBuilder()
             .setColor('#e74c3c')
             .setTitle('🔔 NOUVELLE DEMANDE DE TICKET EN ATTENTE')
-            .setDescription(`👤 **Utilisateur :** ${interaction.user} (\`${interaction.user.id}\`)\n📋 **Type demandé :** \`${prefix.toUpperCase()}\``)
+            .setDescription(`👤 **Demandeur :** ${interaction.user} (\`${interaction.user.id}\`)\n📋 **Catégorie :** \`${prefix.toUpperCase()}\``)
             .setTimestamp();
 
         const staffRow = new ActionRowBuilder().addComponents(
@@ -327,47 +356,70 @@ client.on('interactionCreate', async (interaction) => {
             new ButtonBuilder().setCustomId(`staff_deny_${ticketId}`).setLabel('❌ Rejeter').setStyle(ButtonStyle.Danger)
         );
 
-        // Envoie la demande d'approbation au staff dans le salon secret ou actuel
-        await interaction.channel.send({ content: `⚠️ <@&${CONFIG.roleStaff}> • Une demande d'ouverture nécessite votre attention !`, embeds: [staffEmbed], components: [staffRow] });
+        if (staffChannel) {
+            await staffChannel.send({ content: `⚠️ <@&${CONFIG.roleStaff}> • Nouvelle demande reçue !`, embeds: [staffEmbed], components: [staffRow] });
+        } else {
+            // Si le salon secret n'est pas encore créé par sécurité, on l'envoie temporairement là où le bouton a été cliqué
+            await interaction.channel.send({ content: `⚠️ <@&${CONFIG.roleStaff}> • Salon secret introuvable, demande reçue ici !`, embeds: [staffEmbed], components: [staffRow] });
+        }
 
-        return interaction.reply({ content: '✅ **Demande envoyée avec succès !** Un membre de notre équipe va valider l\'ouverture de votre ticket d\'ici quelques instants.', ephemeral: true });
+        return interaction.reply({ content: '✅ **Demande envoyée avec succès !** Votre ticket est en attente de validation par l\'équipe de modération/staff dans leur salon privé.', ephemeral: true });
     }
 });
 
 // ==========================================
-// FONCTIONNALITÉ 3 : CHAT COMMANDS (+add / -remove)
+// CHAT COMMANDS : AJOUT / RETRAIT SÉCURISÉ (JOUEURS ET RÔLES)
 // ==========================================
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
-
-    // Condition : On doit être dans un salon de la catégorie des tickets
     if (message.channel.parentId !== CONFIG.categorieTickets) return;
 
-    // Commande textuelle d'ajout : +add @membre
+    // --- COMMANDE TEXTUELLE : +add ---
     if (message.content.startsWith('+add')) {
         if (!message.member.roles.cache.has(CONFIG.roleStaff) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return;
         
-        const target = message.mentions.members.first();
-        if (!target) return message.channel.send('❌ Veuillez mentionner un utilisateur valide. Exemple: `+add @Pseudo`');
+        const args = message.content.split(' ').slice(1).join(' ');
+        const targetMember = message.mentions.members.first();
+        const targetRole = message.mentions.roles.first() || message.guild.roles.cache.get(args);
 
-        await message.channel.permissionOverwrites.edit(target.id, {
-            ViewChannel: true,
-            SendMessages: true,
-            ReadMessageHistory: true
-        });
-
-        return message.channel.send(`👤 ${target} a été **ajouté** au ticket avec succès par ${message.author}.`);
+        if (targetMember) {
+            // Ajout d'un joueur unique
+            await message.channel.permissionOverwrites.edit(targetMember.id, {
+                ViewChannel: true,
+                SendMessages: true,
+                ReadMessageHistory: true
+            });
+            return message.channel.send(`👤 ${targetMember} a été **ajouté** au ticket.`);
+        } else if (targetRole) {
+            // Ajout d'un rôle complet (ex: Faction Gendarmerie)
+            await message.channel.permissionOverwrites.edit(targetRole.id, {
+                ViewChannel: true,
+                SendMessages: true,
+                ReadMessageHistory: true
+            });
+            return message.channel.send(`🛡️ Le rôle **${targetRole.name}** a désormais accès à ce ticket.`);
+        } else {
+            return message.channel.send('❌ Cible introuvable. Exemple : `+add @Pseudo` ou `+add @NomDuRole` (ou son ID).');
+        }
     }
 
-    // Commande textuelle de retrait : -remove @membre
+    // --- COMMANDE TEXTUELLE : -remove ---
     if (message.content.startsWith('-remove')) {
         if (!message.member.roles.cache.has(CONFIG.roleStaff) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return;
 
-        const target = message.mentions.members.first();
-        if (!target) return message.channel.send('❌ Veuillez mentionner un utilisateur valide. Exemple: `-remove @Pseudo`');
+        const args = message.content.split(' ').slice(1).join(' ');
+        const targetMember = message.mentions.members.first();
+        const targetRole = message.mentions.roles.first() || message.guild.roles.cache.get(args);
 
-        await message.channel.permissionOverwrites.delete(target.id);
-        return message.channel.send(`👤 ${target} a été **retiré** du ticket par ${message.author}.`);
+        if (targetMember) {
+            await message.channel.permissionOverwrites.delete(targetMember.id);
+            return message.channel.send(`👤 ${targetMember} a été **retiré** du ticket.`);
+        } else if (targetRole) {
+            await message.channel.permissionOverwrites.delete(targetRole.id);
+            return message.channel.send(`🛡️ Le rôle **${targetRole.name}** a été **retiré** du ticket.`);
+        } else {
+            return message.channel.send('❌ Cible introuvable. Exemple : `-remove @Pseudo` ou `-remove @NomDuRole`.');
+        }
     }
 });
 
