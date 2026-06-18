@@ -9,7 +9,7 @@ const {
     PermissionFlagsBits 
 } = require('discord.js');
 
-// Configuration ultra-optimisée des Intents (uniquement ce qui est nécessaire)
+// Configuration ultra-optimisée des Intents
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -35,28 +35,28 @@ const CONFIG = {
 client.once('ready', async () => {
     console.log(`✅ Vortex Bot connecté avec succès : ${client.user.tag}`);
     
-    // Configuration du statut du bot pour faire pro
+    // Configuration du statut pro du bot
     client.user.setActivity('Nova-Life: Amboise Mappings', { type: 3 }); // 3 = "Regarde..."
 
-    // Envoi automatique des panels s'ils ne sont pas déjà présents
-    await initialiserPanels();
+    // Envoi automatique du panel de règlement s'il n'est pas déjà présent
+    await initialiserReglement();
 });
 
 // ==========================================
-// FONCTIONNALITÉ 1 : SYSTÈME DE RÈGLEMENT (DraftBot style optimisé)
+// FONCTIONNALITÉ 1 : GÉNÉRATION DU RÈGLEMENT
 // ==========================================
-async function initialiserPanels() {
+async function initialiserReglement() {
     try {
         const channel = await client.channels.fetch(CONFIG.salonReglement);
         if (!channel) return;
 
-        // On vérifie si un message du bot existe déjà pour éviter les doublons à chaque reboot
+        // On vérifie si un message du bot existe déjà pour éviter le spam au reboot
         const messages = await channel.messages.fetch({ limit: 10 });
         const botMessage = messages.find(m => m.author.id === client.user.id);
 
         if (!botMessage) {
             const embed = new EmbedBuilder()
-                .setColor('#2b2d31') // Couleur sombre style Discord Premium
+                .setColor('#2b2d31')
                 .setTitle('📜 Règlement de la Boutique')
                 .setDescription(
                     'Bienvenue sur notre serveur de vente de mappings pour **Nova-Life: Amboise**.\n\n' +
@@ -77,7 +77,7 @@ async function initialiserPanels() {
             );
 
             await channel.send({ embeds: [embed], components: [row] });
-            console.log("➡️ Panel de règlement envoyé avec succès !");
+            console.log("➡️ Panel de règlement initialisé avec succès !");
         }
     } catch (error) {
         console.error("Erreur lors de l'initialisation du règlement :", error);
@@ -85,17 +85,50 @@ async function initialiserPanels() {
 }
 
 // ==========================================
+// FONCTIONNALITÉ 2 : CRÉATION DU PANEL TICKETS
+// ==========================================
+client.on('messageCreate', async (message) => {
+    // Si un admin tape !setup-ticket, on génère le panel de commande de mappings
+    if (message.content === '!setup-ticket') {
+        if (!message.member.permissions.has(PermissionFlagsBits.Administrator)) return;
+        
+        // Supprime le message de commande pour garder le salon propre
+        await message.delete().catch(() => {});
+        
+        const embed = new EmbedBuilder()
+            .setColor('#5865F2')
+            .setTitle('📦 Commander un Mapping Nova-Life')
+            .setDescription(
+                'Tu souhaites obtenir un mapping exclusif pour ton projet, une concession, des routes ou des textures sur-mesure ?\n\n' +
+                'Clique sur le bouton ci-dessous pour ouvrir un ticket et discuter directement avec nos mappeurs et vendeurs.'
+            )
+            .setFooter({ text: 'Weslé Auto & Mappings' });
+
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('open_ticket')
+                .setLabel('Ouvrir un Ticket')
+                .setStyle(ButtonStyle.Primary)
+                .setEmoji('📩')
+        );
+
+        await message.channel.send({ embeds: [embed], components: [row] });
+        console.log(`➡️ Panel de ticket créé par ${message.author.tag}`);
+    }
+});
+
+// ==========================================
 // GESTIONNAIRE DES INTERACTIONS (Boutons)
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isButton()) return;
 
-    // --- LOGIQUE DU RÈGLEMENT ---
+    // --- LOGIQUE RÈGLEMENT ---
     if (interaction.customId === 'accept_rules') {
-        await interaction.deferReply({ ephemeral: true }); // Évite le bug des 3 secondes de Discord
+        await interaction.deferReply({ ephemeral: true });
 
         const role = interaction.guild.roles.cache.get(CONFIG.roleReglement);
-        if (!role) return interaction.editReply({ content: "❌ Erreur : Rôle introuvable. Contacte un administrateur." });
+        if (!role) return interaction.editReply({ content: "❌ Erreur : Rôle introuvable." });
 
         if (interaction.member.roles.cache.has(CONFIG.roleReglement)) {
             return interaction.editReply({ content: "ℹ️ Tu as déjà accepté le règlement !" });
@@ -103,27 +136,27 @@ client.on('interactionCreate', async (interaction) => {
 
         try {
             await interaction.member.roles.add(role);
-            return interaction.editReply({ content: "✅ Règlement accepté ! Les salons viennent de s'ouvrir à toi. Bienvenue !" });
+            return interaction.editReply({ content: "✅ Règlement accepté ! Les salons de la boutique viennent de s'ouvrir. Bienvenue !" });
         } catch (err) {
             console.error(err);
-            return interaction.editReply({ content: "❌ Je n'ai pas les permissions nécessaires pour te donner le rôle." });
+            return interaction.editReply({ content: "❌ Je n'ai pas la permission Discord requise pour te donner le rôle." });
         }
     }
 
-    // --- LOGIQUE DU TICKET : CRÉATION ---
+    // --- LOGIQUE TICKET : OUVERTURE ---
     if (interaction.customId === 'open_ticket') {
         await interaction.deferReply({ ephemeral: true });
 
         const ticketName = `🛒-mapping-${interaction.user.username}`;
         
-        // Vérification si l'utilisateur a déjà un ticket ouvert (Évite le spam et surcharge de Render)
+        // Anti-Spam : Vérifie si un ticket porte déjà son nom
         const salonExiste = interaction.guild.channels.cache.find(c => c.name === ticketName.toLowerCase());
         if (salonExiste) {
             return interaction.editReply({ content: `❌ Tu as déjà un ticket ouvert ici : ${salonExiste}` });
         }
 
         try {
-            // Création du salon avec permissions ultra-sécurisées
+            // Création du salon masqué pour le reste du serveur
             const ticketChannel = await interaction.guild.channels.create({
                 name: ticketName,
                 type: ChannelType.GuildText,
@@ -131,22 +164,21 @@ client.on('interactionCreate', async (interaction) => {
                 permissionOverwrites: [
                     {
                         id: interaction.guild.id,
-                        deny: [PermissionFlagsBits.ViewChannel], // Tout le monde est masqué
+                        deny: [PermissionFlagsBits.ViewChannel],
                     },
                     {
                         id: interaction.user.id,
-                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory], // Le client voit
+                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
                     },
                     {
                         id: CONFIG.roleStaff,
-                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory], // Le staff voit
+                        allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory],
                     }
                 ],
             });
 
-            // Embed d'accueil du ticket (fait forte impression)
             const ticketEmbed = new EmbedBuilder()
-                .setColor('#ffd700') // Couleur Or pour le côté business/vente
+                .setColor('#ffd700') // Couleur Or (Business / Vente)
                 .setTitle(`🛒 Commande de ${interaction.user.username}`)
                 .setDescription(
                     `Bonjour ${interaction.user}, bienvenue dans ton espace de vente privé.\n\n` +
@@ -174,7 +206,7 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    // --- LOGIQUE DU TICKET : FERMETURE ---
+    // --- LOGIQUE TICKET : FERMETURE ---
     if (interaction.customId === 'close_ticket') {
         await interaction.reply({ content: '🔒 Fermeture et nettoyage du ticket dans 5 secondes...' });
         
@@ -187,3 +219,6 @@ client.on('interactionCreate', async (interaction) => {
         }, 5000);
     }
 });
+
+// Connexion sécurisée au bot via Render
+client.login(process.env.TOKEN);
