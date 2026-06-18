@@ -40,7 +40,6 @@ const CONFIG = {
 };
 
 // 🖼️ URL DE TON IMAGE image_81130c.jpg HÉBERGÉE
-// (Suis la procédure ci-dessous pour coller ton lien Discord cdn à la place du texte)
 const URL_IMAGE_PANEL = "https://i.imgur.com/8aJWlhy.png";
 
 // Stockage temporaire des demandes de tickets en attente de validation
@@ -53,7 +52,6 @@ client.once('ready', async () => {
     console.log('//                                                   //');
     console.log('///////////////////////////////////////////////////////');
     
-    // Changement de l'activité du bot avec le nouveau nom de la communauté
     client.user.setActivity('💎 Private Studio (PS) Mappings', { type: 3 });
     
     await initialiserReglement();
@@ -68,7 +66,6 @@ async function initialiserSalonStaff() {
         const guild = client.guilds.cache.first();
         if (!guild) return;
 
-        // On cherche si le salon de gestion existe déjà
         let staffChannel = guild.channels.cache.find(c => c.name === "🔒-demandes-tickets");
 
         if (!staffChannel) {
@@ -77,8 +74,8 @@ async function initialiserSalonStaff() {
                 type: ChannelType.GuildText,
                 parent: CONFIG.categorieTickets,
                 permissionOverwrites: [
-                    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, // Invisible pour tout le monde
-                    { id: CONFIG.roleStaff, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] } // Uniquement Staff
+                    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+                    { id: CONFIG.roleStaff, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
                 ]
             });
             console.log("➡️ Salon secret de gestion des tickets créé avec succès !");
@@ -123,7 +120,6 @@ async function initialiserReglement() {
                     '🛑 Tout manquement à ce protocole donnera lieu à des sanctions adaptées (Avertissement ➔ Sourdine ➔ Exclusion ➔ Bannissement Définitif).\n\n' +
                     '*Pour valider votre entrée et débloquer l\'intégralité des salons du serveur, veuillez cliquer sur le bouton ci-dessous.*'
                 )
-                // Application de l'image image_81130c.jpg en bas de l'embed
                 .setImage(URL_IMAGE_PANEL)
                 .setFooter({ text: '💎 Private Studio (PS) • Prenez soin de respecter ces règles', iconURL: client.user.displayAvatarURL() });
 
@@ -246,7 +242,6 @@ client.on('interactionCreate', async (interaction) => {
             await interaction.message.delete().catch(() => {});
 
             try {
-                // Création du salon de ticket physique avec STRICTES PERMISSIONS
                 const ticketChannel = await interaction.guild.channels.create({
                     name: data.channelName,
                     type: ChannelType.GuildText,
@@ -254,15 +249,15 @@ client.on('interactionCreate', async (interaction) => {
                     permissionOverwrites: [
                         { 
                             id: interaction.guild.id, 
-                            deny: [PermissionFlagsBits.ViewChannel] // REND LE SALON TOTALEMENT INVISIBLE POUR TOUS LES AUTRES ROLES
+                            deny: [PermissionFlagsBits.ViewChannel] 
                         },
                         { 
                             id: data.userId, 
-                            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] // Uniquement le client
+                            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] 
                         },
                         { 
                             id: CONFIG.roleStaff, 
-                            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] // Uniquement le staff
+                            allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] 
                         }
                     ],
                 });
@@ -311,7 +306,7 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    // --- PARTIE 2 : TRAITEMENT DE LA SÉLECTION DANS LE MENU ---
+    // --- TRAITEMENT DE LA SÉLECTION DANS LE MENU (CORRIGÉ ICI !) ---
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_type') {
         const choice = interaction.values[0];
         let prefix = "ticket";
@@ -338,23 +333,21 @@ client.on('interactionCreate', async (interaction) => {
 
         const channelName = `${prefix}-${interaction.user.username}`.toLowerCase();
         
-        // Vérification doublon actif
-        const existing = interaction.guild.channels.cache.find(c => c.name === name);
+        // CORRECTION ICI : Remplacement de "name" par "channelName"
+        const existing = interaction.guild.channels.cache.find(c => c.name === channelName);
         if (existing) {
             return interaction.reply({ content: `❌ Vous possédez déjà un espace ouvert pour cette demande : ${existing}`, ephemeral: true });
         }
 
-        // Génération de l'identifiant unique de demande
         const ticketId = `${interaction.user.id}-${Date.now()}`;
         pendingTickets.set(ticketId, {
             userId: interaction.user.id,
-            channelName,
+            channelName, // CORRECTION ICI
             title,
             description,
             color
         });
 
-        // Envoi de l'alerte DANS LE SALON SECRET DU STAFF
         const guild = interaction.guild;
         const staffChannel = guild.channels.cache.find(c => c.name === "🔒-demandes-tickets");
 
@@ -386,7 +379,6 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (message.channel.parentId !== CONFIG.categorieTickets) return;
 
-    // --- COMMANDE TEXTUELLE : +add ---
     if (message.content.startsWith('+add')) {
         if (!message.member.roles.cache.has(CONFIG.roleStaff) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return;
         
@@ -413,7 +405,6 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    // --- COMMANDE TEXTUELLE : -remove ---
     if (message.content.startsWith('-remove')) {
         if (!message.member.roles.cache.has(CONFIG.roleStaff) && !message.member.permissions.has(PermissionFlagsBits.Administrator)) return;
 
