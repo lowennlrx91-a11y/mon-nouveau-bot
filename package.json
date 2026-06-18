@@ -1,0 +1,11 @@
+"name": "mon-nouveau-bot",
+"version": "1.0.0",
+"description": "Mon super bot Discord",
+"main": "index.js",
+"scripts": {
+"start": "node index.js"
+},
+"dependencies": {
+"discord.js": "^14.15.0"
+}
+}
