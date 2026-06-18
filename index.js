@@ -10,6 +10,15 @@ const {
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder
 } = require('discord.js');
+const http = require('http');
+
+// ==========================================
+// 🛡️ SÉCURITÉ ANTI-COUPURE RENDER (PORT BINDING)
+// ==========================================
+http.createServer((req, res) => {
+    res.write("Bot Vortex en ligne !");
+    res.end();
+}).listen(process.env.PORT || 3000);
 
 const client = new Client({
     intents: [
@@ -21,13 +30,13 @@ const client = new Client({
 });
 
 // ==========================================
-// CONFIGURATION DES IDENTIFIANTS (IDs)
+// CONFIGURATION DES IDENTIFIANTS (Mise à jour)
 // ==========================================
 const CONFIG = {
-    roleReglement: "1517222647958732861",      // ID du rôle Membre validé
-    salonReglement: "1465392062227546236",     // ID du salon Règlement
-    categorieTickets: "1465393296410153117",   // ID de la catégorie des tickets
-    roleStaff: "1465396190395764838"           // ID du rôle Staff/Vendeur/Mappeur
+    roleReglement: "1517222647958732861",      // ID de l'image image_9016b4.png
+    salonReglement: "1465392062227546236",     // ID de l'image image_9016b4.png
+    categorieTickets: "1465393296410153117",   // ID de l'image image_9016b4.png
+    roleStaff: "1465396190395764838"           // ID de l'image image_9016b4.png
 };
 
 client.once('ready', async () => {
@@ -79,7 +88,7 @@ async function initialiserReglement() {
             );
 
             await channel.send({ embeds: [embed], components: [row] });
-            console.log("➡️ Panel de règlement initialisé !");
+            console.log("➡️ Panel de règlement initialisé avec les bons IDs !");
         }
     } catch (error) {
         console.error("Erreur règlement :", error);
@@ -117,13 +126,12 @@ client.on('messageCreate', async (message) => {
 });
 
 // ==========================================
-// GESTIONNAIRE DES INTERACTION (Boutons & Menus)
+// GESTIONNAIRE DES INTERACTIONS (Boutons & Menus)
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
-    // --- GESTION DES BOUTONS ---
     if (interaction.isButton()) {
         
-        // Validation Règlement
+        // Clic acceptation règlement
         if (interaction.customId === 'accept_rules') {
             await interaction.deferReply({ ephemeral: true });
             const role = interaction.guild.roles.cache.get(CONFIG.roleReglement);
@@ -141,7 +149,7 @@ client.on('interactionCreate', async (interaction) => {
             }
         }
 
-        // Clic sur "Ouvrir un ticket" -> Envoi du menu des catégories
+        // Clic ouvrir un ticket -> Menu de sélection
         if (interaction.customId === 'open_ticket_hub') {
             await interaction.deferReply({ ephemeral: true });
 
@@ -170,7 +178,7 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.editReply({ content: 'Veuillez choisir la catégorie de votre demande :', components: [row] });
         }
 
-        // Fermeture du ticket
+        // Clic fermeture ticket
         if (interaction.customId === 'close_ticket') {
             await interaction.reply({ content: '🔒 Fermeture et suppression du ticket dans 5 secondes...' });
             setTimeout(async () => {
@@ -179,7 +187,7 @@ client.on('interactionCreate', async (interaction) => {
         }
     }
 
-    // --- GESTION DU MENU DE SÉLECTION (CRÉATION DU TICKET PAR CATÉGORIE) ---
+    // Gestion du choix dans le menu déroulant
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_type') {
         await interaction.deferUpdate();
 
@@ -192,7 +200,7 @@ client.on('interactionCreate', async (interaction) => {
         if (choice === 'ticket_mapping') {
             prefix = "🛒-mapping";
             title = "🛒 Commande de Mapping - Nova-Life";
-            description = `Bonjour ${interaction.user},\n\nMerci de détailler ton projet :\n1️⃣ Quel type de mapping ou modification souhaites-tu ?\n2️⃣ As-tu des textures personnalisées ou logos à intégrer (ex: carbon fiber) ?`;
+            description = `Bonjour ${interaction.user},\n\nMerci de détailler ton projet :\n1️⃣ Quel type de mapping ou modification souhaites-tu ?\n2️⃣ As-Ty des demandes de textures spécifiques (ex: logos, carbon fiber) ?`;
             color = "#ffd700";
         } else if (choice === 'ticket_paiement') {
             prefix = "💳-paiement";
@@ -244,7 +252,7 @@ client.on('interactionCreate', async (interaction) => {
 
         } catch (error) {
             console.error(error);
-            return interaction.followUp({ content: "❌ Impossible de créer le ticket. Vérifie que l'ID de ta catégorie est correct et que j'ai la permission d'y créer des salons.", ephemeral: true });
+            return interaction.followUp({ content: "❌ Erreur de création. Vérifie que mon rôle est bien 'Administrateur' et positionné en haut de la liste.", ephemeral: true });
         }
     }
 });
