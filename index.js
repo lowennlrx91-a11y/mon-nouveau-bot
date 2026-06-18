@@ -16,7 +16,7 @@ const http = require('http');
 // 🛡️ SÉCURITÉ ANTI-COUPURE RENDER (PORT BINDING)
 // ==========================================
 http.createServer((req, res) => {
-    res.write("Bot Vortex en ligne !");
+    res.write("Bot en ligne !");
     res.end();
 }).listen(process.env.PORT || 3000);
 
@@ -39,12 +39,23 @@ const CONFIG = {
     roleStaff: "1465396190395764838"           
 };
 
+// 🖼️ URL DE TON IMAGE image_81130c.jpg HÉBERGÉE
+// (Suis la procédure ci-dessous pour coller ton lien Discord cdn à la place du texte)
+const URL_IMAGE_PANEL = "https://i.imgur.com/8aJWlhy.png";
+
 // Stockage temporaire des demandes de tickets en attente de validation
 const pendingTickets = new Map();
 
 client.once('ready', async () => {
-    console.log(`✅ Vortex Bot connecté avec succès : ${client.user.tag}`);
-    client.user.setActivity('Nova-Life: Amboise Mappings', { type: 3 });
+    console.log('///////////////////////////////////////////////////////');
+    console.log('//                                                   //');
+    console.log('//   💎 Private Studio (PS) connecté avec succès !   //');
+    console.log('//                                                   //');
+    console.log('///////////////////////////////////////////////////////');
+    
+    // Changement de l'activité du bot avec le nouveau nom de la communauté
+    client.user.setActivity('💎 Private Studio (PS) Mappings', { type: 3 });
+    
     await initialiserReglement();
     await initialiserSalonStaff();
 });
@@ -91,12 +102,12 @@ async function initialiserReglement() {
         if (!botMessage) {
             const embed = new EmbedBuilder()
                 .setColor('#2b2d31')
-                .setTitle('📜 RÈGLEMENT DU SERVEUR • À LIRE ET RESPECTER')
+                .setTitle('💎 PRIVATE STUDIO (PS) • RÈGLEMENT À RESPECTER')
                 .setDescription(
-                    'Welcome sur notre espace de création ! Veuillez prendre connaissance de nos règles pour assurer le bon fonctionnement de la communauté.\n\n' +
+                    'Welcome sur l\'espace de création de **Private Studio** ! Veuillez prendre connaissance de nos règles pour assurer le bon fonctionnement de la communauté.\n\n' +
                     '▬▬▬ 📋 **RÈGLES GÉNÉRALES** ▬▬▬\n\n' +
                     '🤝 `1.` **Respect & Courtoisie :** Tout comportement irrespectueux, insultant, toxique ou discriminatoire est strictement interdit.\n\n' +
-                    '💬 `2.` **Langage Approprié :** Restez poli et évitez tout contenu inapproprié, déplacé ou sensible (NSFW, politique, religieux).\n\n' +
+                    '💬 `2.` **Langage Approprié :** Restez poli et évitez tout contenu inapproprié, déplacé ou sensitive (NSFW, politique, religieux).\n\n' +
                     '🔒 `3.` **Confidentialité :** Ne partagez aucune information personnelle, que ce soit les vôtres ou celles des autres membres.\n\n' +
                     '📢 `4.` **Publicité & Spam :** Toute promotion non autorisée (y compris le démarchage par message privé) est formellement interdite.\n\n' +
                     '👥 `5.` **Multi-Comptes :** L’utilisation de comptes secondaires pour contourner une sanction entraînera un bannissement définitif.\n\n' +
@@ -112,7 +123,9 @@ async function initialiserReglement() {
                     '🛑 Tout manquement à ce protocole donnera lieu à des sanctions adaptées (Avertissement ➔ Sourdine ➔ Exclusion ➔ Bannissement Définitif).\n\n' +
                     '*Pour valider votre entrée et débloquer l\'intégralité des salons du serveur, veuillez cliquer sur le bouton ci-dessous.*'
                 )
-                .setFooter({ text: 'Vortex Bot • Prenez soin de respecter ces règles', iconURL: client.user.displayAvatarURL() });
+                // Application de l'image image_81130c.jpg en bas de l'embed
+                .setImage(URL_IMAGE_PANEL)
+                .setFooter({ text: '💎 Private Studio (PS) • Prenez soin de respecter ces règles', iconURL: client.user.displayAvatarURL() });
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
@@ -143,13 +156,13 @@ client.on('messageCreate', async (message) => {
             .setColor('#5865F2')
             .setTitle('📦 CENTRE DE SUPPORT & COMMANDES MAPPING')
             .setDescription(
-                'Bienvenue sur notre plateforme d\'assistance ! Vous souhaitez concrétiser un projet de mapping Nova-Life ou rejoindre notre équipe ?\n\n' +
+                'Bienvenue sur l\'assistant de support de **Private Studio** ! Vous souhaitez concrétiser un projet de mapping Nova-Life ou rejoindre notre équipe ?\n\n' +
                 '🔹 **🛒 Acheter un Mapping :** Commandez une structure exclusive (Concession, QG Gendarmerie/Sapeurs-Pompiers, Garage, Villa VIP).\n' +
                 '🔹 **💳 Effectuer un Paiement :** Finalisez et sécurisez vos transactions avec notre équipe commerciale.\n' +
                 '🔹 **🛠️ Devenir Mappeur :** Déposez votre candidature et présentez vos créations pour intégrer l\'équipe.\n\n' +
                 '👇 *Cliquez sur le bouton ci-dessous pour formuler une demande d\'ouverture de ticket.*'
             )
-            .setFooter({ text: 'Weslé Auto & Mappings • Traitement automatisé', iconURL: client.user.displayAvatarURL() });
+            .setFooter({ text: '💎 Private Studio (PS) • Traitement automatisé', iconURL: client.user.displayAvatarURL() });
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -182,7 +195,7 @@ client.on('interactionCreate', async (interaction) => {
 
             try {
                 await interaction.member.roles.add(role);
-                return interaction.editReply({ content: "✨ **Règlement accepté !** Vos accès viennent d'être activés. Bienvenue parmi nous !" });
+                return interaction.editReply({ content: "✨ **Règlement accepté !** Vos accès viennent d'être activés. Bienvenue chez Private Studio !" });
             } catch (err) {
                 return interaction.editReply({ content: "❌ Permissions insuffisantes pour attribuer le rôle." });
             }
@@ -258,7 +271,7 @@ client.on('interactionCreate', async (interaction) => {
                     .setColor(data.color)
                     .setTitle(data.title)
                     .setDescription(`${data.description}\n\n🛠️ **Commandes Rapides de gestion :**\n👤 \`+add @Pseudo\` ou \`+add ID_du_Rôle\`\n❌ \`-remove @Pseudo\` ou \`-remove ID_du_Rôle\``)
-                    .setFooter({ text: 'Système de gestion sécurisé Vortex' });
+                    .setFooter({ text: '💎 Private Studio (PS) • Système Sécurisé' });
 
                 const actionRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId(`ticket_add_user`).setLabel('Ajouter').setStyle(ButtonStyle.Secondary).setEmoji('➕'),
@@ -308,8 +321,8 @@ client.on('interactionCreate', async (interaction) => {
 
         if (choice === 'ticket_mapping') {
             prefix = "🛒-mapping";
-            title = "🛒 Commande de Mapping - Nova-Life: Amboise";
-            description = `Bonjour <@${interaction.user.id}>,\n\nMerci de détailler au maximum votre demande pour nos mappeurs :\n\n📌 **Type de projet :** (Concession, Gendarmerie, Habitation VIP...)\n🎨 **Textures personnalisées souhaitées :** (Fibre de carbone, logos de marques, enseignes de nuit...)\n⚡ **Optimisation :** Souhaitez-vous une structure allégée par chunks (Fast Loading PC) ?`;
+            title = "🛒 Commande de Mapping - Private Studio";
+            description = `Bonjour <@${interaction.user.id}>,\n\nMerci de détailler au maximum votre demande pour nos mappeurs :\n\n📌 **Type de projet :** (Concession, Gendarmerie, Habitation VIP...)\n🎨 **Textures personnalisées souhaitées :** (Fibre de carbone, logos de marques...)\n⚡ **Optimisation :** Souhaitez-vous une structure allégée par chunks (Fast Loading PC) ?`;
             color = "#ffd700";
         } else if (choice === 'ticket_paiement') {
             prefix = "💳-paiement";
@@ -318,7 +331,7 @@ client.on('interactionCreate', async (interaction) => {
             color = "#2ecc71";
         } else if (choice === 'ticket_recrutement') {
             prefix = "🛠️-recrutement";
-            title = "🛠️ Recrutement • Équipe Technique Mappings";
+            title = "🛠️ Recrutement • Équipe Technique Private Studio";
             description = `Bonjour <@${interaction.user.id}>,\n\nMerci de l'intérêt porté à notre équipe !\n• Veuillez envoyer des images/vidéos de vos anciens mappings.\n• Indiquez vos motivations et vos disponibilités.`;
             color = "#3498db";
         }
@@ -326,7 +339,7 @@ client.on('interactionCreate', async (interaction) => {
         const channelName = `${prefix}-${interaction.user.username}`.toLowerCase();
         
         // Vérification doublon actif
-        const existing = interaction.guild.channels.cache.find(c => c.name === channelName);
+        const existing = interaction.guild.channels.cache.find(c => c.name === name);
         if (existing) {
             return interaction.reply({ content: `❌ Vous possédez déjà un espace ouvert pour cette demande : ${existing}`, ephemeral: true });
         }
@@ -359,11 +372,10 @@ client.on('interactionCreate', async (interaction) => {
         if (staffChannel) {
             await staffChannel.send({ content: `⚠️ <@&${CONFIG.roleStaff}> • Nouvelle demande reçue !`, embeds: [staffEmbed], components: [staffRow] });
         } else {
-            // Si le salon secret n'est pas encore créé par sécurité, on l'envoie temporairement là où le bouton a été cliqué
             await interaction.channel.send({ content: `⚠️ <@&${CONFIG.roleStaff}> • Salon secret introuvable, demande reçue ici !`, embeds: [staffEmbed], components: [staffRow] });
         }
 
-        return interaction.reply({ content: '✅ **Demande envoyée avec succès !** Votre ticket est en attente de validation par l\'équipe de modération/staff dans leur salon privé.', ephemeral: true });
+        return interaction.reply({ content: '✅ **Demande envoyée avec succès !** Votre ticket est en attente de validation par l\'équipe de Private Studio.', ephemeral: true });
     }
 });
 
@@ -383,7 +395,6 @@ client.on('messageCreate', async (message) => {
         const targetRole = message.mentions.roles.first() || message.guild.roles.cache.get(args);
 
         if (targetMember) {
-            // Ajout d'un joueur unique
             await message.channel.permissionOverwrites.edit(targetMember.id, {
                 ViewChannel: true,
                 SendMessages: true,
@@ -391,7 +402,6 @@ client.on('messageCreate', async (message) => {
             });
             return message.channel.send(`👤 ${targetMember} a été **ajouté** au ticket.`);
         } else if (targetRole) {
-            // Ajout d'un rôle complet (ex: Faction Gendarmerie)
             await message.channel.permissionOverwrites.edit(targetRole.id, {
                 ViewChannel: true,
                 SendMessages: true,
