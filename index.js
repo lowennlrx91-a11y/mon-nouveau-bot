@@ -38,7 +38,8 @@ const CONFIG = {
     salonTicketPanel: "1465393346892795905", 
     categorieTickets: "1465393296410153117",   
     categorieLogs: "1465393296410153117",       
-    roleStaff: "1465396190395764838"           
+    roleStaff: "1465396190395764838",
+    salonBienvenue: "1465390482837209221"
 };
 
 // 🖼️ URL DE TON IMAGE CONFIGURÉE AUTOMATIQUEMENT
@@ -160,7 +161,7 @@ async function initialiserReglement() {
                     '▬▬▬ 🛠️ 𝙈𝘼𝙋𝙋𝙄𝙉𝙂 ▬▬▬\n\n' +
                     '🛒 `1.` **Commandes & Facturation :** Toute commande doit se faire via le système de ticket.\n\n' +
                     '✨ `2.` **Propriété Intellectuelle :** Toute œuvre achetée devient votre propriété exclusive.\n\n' +
-                    '*Pour valider votre entrée et débloquer les 𝘿𝙞𝙨𝙘𝙪𝙩𝙞𝙤𝙣𝙨, veuillez cliquer sur le bouton ci-dessous.*'
+                    '*Pour valider votre entrée et débloquer les 𝘿𝙞𝙨𝙘𝙪𝙨𝙨𝙞𝙤𝙣𝙨, veuillez cliquer sur le bouton ci-dessous.*'
                 )
                 .setImage(URL_IMAGE_PANEL)
                 .setFooter({ text: '💎 Private Studio (PS) • Prenez soin de respecter ces règles', iconURL: client.user.displayAvatarURL() });
@@ -232,6 +233,52 @@ async function initialiserTicketPanelAutomatique() {
 }
 
 // ==========================================
+// FONCTIONNALITÉ 3 : MESSAGE DE BIENVENUE (NOUVEAU MEMBRE)
+// ==========================================
+client.on('guildMemberAdd', async (member) => {
+    try {
+        const salonBienvenue = member.guild.channels.cache.get(CONFIG.salonBienvenue);
+
+        if (!salonBienvenue) {
+            console.error(`⚠️ Salon de bienvenue introuvable (ID configuré : ${CONFIG.salonBienvenue})`);
+            return;
+        }
+
+        const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 512 });
+
+        const embedBienvenue = new EmbedBuilder()
+            .setColor('#ffd700')
+            .setTitle('🎉 Nouveau membre sur Private Studio (PS) !')
+            .setDescription(
+                `Bienvenue ${member} sur le serveur de la communauté **Private Studio** ! 💎\n\n` +
+                `Nous comptons désormais **${member.guild.memberCount}** membres.\n\n` +
+                `📜 N'oublie pas de consulter le <#${CONFIG.salonReglement}> pour débloquer l'accès complet au serveur.`
+            )
+            .setThumbnail(avatarUrl)
+            .addFields(
+                { name: '👤 Pseudo', value: `${member.user.tag}`, inline: true },
+                { name: '📅 Arrivé le', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
+                { name: '🖼️ Lien de l\'avatar', value: `[Voir l'image](${avatarUrl})`, inline: true }
+            )
+            .setImage(avatarUrl)
+            .setFooter({ text: '💎 Private Studio (PS) • Bienvenue parmi nous', iconURL: member.guild.iconURL() })
+            .setTimestamp();
+
+        await salonBienvenue.send({ content: `${member}`, embeds: [embedBienvenue] });
+
+        const log = new EmbedBuilder()
+            .setColor('#ffd700')
+            .setTitle('📥 Nouveau Membre')
+            .setDescription(`${member} (\`${member.id}\`) vient de rejoindre le serveur.`)
+            .setTimestamp();
+        await envoyerLog(member.guild, log);
+
+    } catch (error) {
+        console.error("Erreur lors de l'envoi du message de bienvenue :", error);
+    }
+});
+
+// ==========================================
 // MANAGEMENT DES INTERACTIONS (BOUTONS & MENUS + LOGS)
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
@@ -257,7 +304,7 @@ client.on('interactionCreate', async (interaction) => {
                     .setTimestamp();
                 await envoyerLog(interaction.guild, log);
 
-                return interaction.editReply({ content: "✨ **Règlement accepté !** Vos accès viennent d'être activés. Bienvenue dans nos salons de **𝘿𝙞𝙨𝙘𝙪𝙩𝙞𝙤𝙣𝙨** !" });
+                return interaction.editReply({ content: "✨ **Règlement accepté !** Vos accès viennent d'être activés. Bienvenue dans nos salons de **𝘿𝙞𝙨𝙘𝙪𝙨𝙨𝙞𝙤𝙣𝙨** !" });
             } catch (err) {
                 return interaction.editReply({ content: "❌ Permissions insuffisantes pour attribuer le rôle." });
             }
@@ -386,23 +433,23 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_type') {
         const choice = interaction.values[0];
         let prefix = "ticket";
-        let title = "𝙏𝙞𝙘𝙠𝙚𝙩";
+        let title = "𝙏𝙞𝙘𝙚𝙩";
         let description = "";
         let color = "#5865F2";
 
         if (choice === 'ticket_mapping') {
             prefix = "🛒-mapping";
-            title = "🛒 𝘾𝙤𝙢𝙢𝙖𝙣𝙙𝙚 𝙙𝙚 𝙈𝙖𝙥𝙥𝙞𝙣𝙜 - 𝙋𝙧𝙞𝙫𝙖𝙩𝙚 𝙎𝙩𝙪𝙙𝙞ο";
+            title = "🛒 Commande de Mapping - Private Studio";
             description = `Bonjour <@${interaction.user.id}>,\n\nMerci de détailler au maximum votre demande pour nos mappeurs :\n\n📌 **Type de projet :** (Concession, Gendarmerie...)\n🎨 **Textures souhaitées :** (Fibre de carbone...)\n⚡ **Optimisation :** Souhaitez-vous une structure allégée par chunks ?`;
             color = "#ffd700";
         } else if (choice === 'ticket_paiement') {
             prefix = "💳-paiement";
-            title = "💳 𝙎𝙚𝙧𝙫𝙞𝙘𝙚 𝙙𝙚 𝙋𝙖𝙞𝙚𝙢𝙚𝙣𝙩 & 𝙁𝙖𝙘𝙩𝙪𝙧𝙖𝙩𝙞ο𝙣";
+            title = "💳 Service de Paiement & Facturation";
             description = `Bonjour <@${interaction.user.id}>,\n\nPour procéder à la facturation de votre mapping :\n• Veuillez rappeler le tarif conclu.\n• Un membre du pôle commercial va vous transmettre les liens officiels.`;
             color = "#2ecc71";
         } else if (choice === 'ticket_recrutement') {
             prefix = "🛠️-recrutement";
-            title = "🛠️ 𝙍𝙚𝙘𝙧𝙪𝙩𝙚𝙢𝙚𝙣𝙩 • 𝙋𝙧𝙞𝙫𝙖𝙩𝙚 𝙎𝙩𝙪𝙙𝙞ο";
+            title = "🛠️ Recrutement - Private Studio";
             description = `Bonjour <@${interaction.user.id}>,\n\nMerci de l'intérêt porté à notre équipe !\n• Veuillez envoyer des images de vos anciens mappings.\n• Indiquez vos motivations.`;
             color = "#3498db";
         }
