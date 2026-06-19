@@ -41,7 +41,7 @@ const CONFIG = {
     categorieTickets: "1465393296410153117",   
     categorieLogs: "1465393296410153117",       
     roleStaff: "1465396190395764838",
-    salonBienvenue: "METS_ICI_L_ID_DU_SALON_BIENVENUE"
+    salonBienvenue: "1465390482837209221"
 };
 
 // 🖼️ URL DE TON IMAGE CONFIGURÉE AUTOMATIQUEMENT
