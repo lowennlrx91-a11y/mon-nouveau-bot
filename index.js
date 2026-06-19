@@ -35,9 +35,9 @@ const client = new Client({
 const CONFIG = {
     roleReglement: "1517222647958732861",      
     salonReglement: "1465392062227546236",     
-    salonTicketPanel: "1465393346892795905", // 🔴 Remplace par l'ID du salon où mettre le panel ticket
+    salonTicketPanel: "1465393346892795905", 
     categorieTickets: "1465393296410153117",   
-    categorieLogs: "1465393296410153117",       // 🔴 Remplace par l'ID de la catégorie pour le salon Logs
+    categorieLogs: "1465393296410153117",       
     roleStaff: "1465396190395764838"           
 };
 
@@ -77,10 +77,10 @@ async function initialiserLogsChannel() {
             logsChannel = await guild.channels.create({
                 name: "📋-logs-serveur",
                 type: ChannelType.GuildText,
-                parent: CONFIG.categorieLogs, // Utilise l'ID de la catégorie configurée
+                parent: CONFIG.categorieLogs,
                 permissionOverwrites: [
-                    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] }, // Masqué pour tout le monde
-                    { id: CONFIG.roleStaff, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory] } // Uniquement Staff
+                    { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
+                    { id: CONFIG.roleStaff, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory] }
                 ]
             });
             console.log("➡️ Salon des logs créé automatiquement dans la catégorie spécifiée !");
@@ -128,18 +128,20 @@ async function initialiserSalonStaff() {
 }
 
 // ==========================================
-// FONCTIONNALITÉ 1 : RÈGLEMENT (NETTOYAGE ET ENVOI AUTO)
+// FONCTIONNALITÉ 1 : RÈGLEMENT (NETTOYAGE COMPLET SI BESOIN)
 // ==========================================
 async function initialiserReglement() {
     try {
         const channel = await client.channels.fetch(CONFIG.salonReglement);
         if (!channel) return;
 
-        const messages = await channel.messages.fetch({ limit: 20 });
-        const botMessage = messages.find(m => m.author.id === client.user.id);
+        const messages = await channel.messages.fetch({ limit: 50 });
+        
+        // On vérifie s'il y a des messages d'autres personnes ou si le salon n'a pas exactement 1 message du bot
+        const redirectionNecessaire = messages.size !== 1 || messages.first().author.id !== client.user.id;
 
-        // Si le bot n'a pas encore envoyé le panel, on nettoie et on l'envoie
-        if (!botMessage) {
+        if (redirectionNecessaire) {
+            console.log("🧹 Nettoyage des anciens messages dans le salon règlement...");
             if (messages.size > 0) {
                 await channel.bulkDelete(messages, true).catch(() => {
                     messages.forEach(async (m) => await m.delete().catch(() => {}));
@@ -172,7 +174,7 @@ async function initialiserReglement() {
             );
 
             await channel.send({ embeds: [embed], components: [row] });
-            console.log("➡️ Panel de règlement automatique mis à jour !");
+            console.log("➡️ Panel de règlement renvoyé proprement !");
         }
     } catch (error) {
         console.error("Erreur règlement :", error);
@@ -180,18 +182,20 @@ async function initialiserReglement() {
 }
 
 // ==========================================
-// FONCTIONNALITÉ 2 : PANEL TICKET AUTOMATIQUE PAR ID
+// FONCTIONNALITÉ 2 : PANEL TICKET (NETTOYAGE FORCE SI ANCIENS MESSAGES)
 // ==========================================
 async function initialiserTicketPanelAutomatique() {
     try {
         const channel = await client.channels.fetch(CONFIG.salonTicketPanel);
-        if (!channel) return console.log("⚠️ Salon de ticket principal introuvable (Vérifie l'ID).");
+        if (!channel) return console.log("⚠️ Salon de ticket principal introuvable.");
 
-        const messages = await channel.messages.fetch({ limit: 20 });
-        const botMessage = messages.find(m => m.author.id === client.user.id);
+        const messages = await channel.messages.fetch({ limit: 50 });
+        
+        // Force le reset si le salon contient plus d'un message, ou si le dernier message n'est pas du bot
+        const besoinDeNettoyer = messages.size !== 1 || messages.first().author.id !== client.user.id;
 
-        // Si le message du bot n'existe pas, on vide le salon et on met le panel tout neuf
-        if (!botMessage) {
+        if (besoinDeNettoyer) {
+            console.log("🧹 Nettoyage complet des anciens messages et commandes dans le salon tickets...");
             if (messages.size > 0) {
                 await channel.bulkDelete(messages, true).catch(() => {
                     messages.forEach(async (m) => await m.delete().catch(() => {}));
@@ -208,7 +212,7 @@ async function initialiserTicketPanelAutomatique() {
                     '🔹 **🛠️ Devenir Mappeur :** Déposez votre candidature pour intégrer l\'équipe.\n\n' +
                     '👇 *Cliquez sur le bouton ci-dessous pour formuler une demande d\'ouverture de ticket.*'
                 )
-                .setImage(URL_IMAGE_PANEL) // L'image s'affiche automatiquement ici
+                .setImage(URL_IMAGE_PANEL) 
                 .setFooter({ text: '💎 Private Studio (PS) • Traitement automatisé', iconURL: client.user.displayAvatarURL() });
 
             const row = new ActionRowBuilder().addComponents(
@@ -220,7 +224,7 @@ async function initialiserTicketPanelAutomatique() {
             );
 
             await channel.send({ embeds: [embed], components: [row] });
-            console.log("➡️ Panel de ticket automatique mis en place !");
+            console.log("➡️ Nouveau panel de ticket unique et propre mis en place !");
         }
     } catch (error) {
         console.error("Erreur lors de l'initialisation automatique du panel ticket :", error);
@@ -234,7 +238,6 @@ client.on('interactionCreate', async (interaction) => {
     
     if (interaction.isButton()) {
         
-        // Clic acceptation règlement
         if (interaction.customId === 'accept_rules') {
             await interaction.deferReply({ ephemeral: true });
             const role = interaction.guild.roles.cache.get(CONFIG.roleReglement);
@@ -260,7 +263,6 @@ client.on('interactionCreate', async (interaction) => {
             }
         }
 
-        // Clic assistant ticket
         if (interaction.customId === 'open_ticket_hub') {
             await interaction.deferReply({ ephemeral: true });
 
@@ -289,7 +291,6 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.editReply({ content: '📊 **Veuillez qualifier votre demande à l\'aide du menu ci-dessous :**', components: [row] });
         }
 
-        // Action Staff : APPROBATION DU TICKET
         if (interaction.customId.startsWith('staff_approve_')) {
             const ticketId = interaction.customId.replace('staff_approve_', '');
             const data = pendingTickets.get(ticketId);
@@ -320,7 +321,7 @@ client.on('interactionCreate', async (interaction) => {
                     .setColor(data.color)
                     .setTitle(data.title)
                     .setDescription(`${data.description}\n\n🛠 *Commandes de gestion :*\n👤 \`+add @Pseudo\`\n❌ \`-remove @Pseudo\``)
-                    .setFooter({ text: '💎 Private Studio (PS) • Système Sécurisé' });
+                    .setFooter({ text: '💎 Private Studio (PS) • Système Securisé' });
 
                 const actionRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId(`ticket_add_user`).setLabel('Ajouter').setStyle(ButtonStyle.Secondary).setEmoji('➕'),
@@ -341,7 +342,6 @@ client.on('interactionCreate', async (interaction) => {
             }
         }
 
-        // Action Staff : REFUS DU TICKET
         if (interaction.customId.startsWith('staff_deny_')) {
             const ticketId = interaction.customId.replace('staff_deny_', '');
             const data = pendingTickets.get(ticketId);
@@ -363,7 +363,6 @@ client.on('interactionCreate', async (interaction) => {
             return interaction.reply({ content: '🗑️ Demande de ticket rejetée.', ephemeral: true });
         }
 
-        // Action : Fermeture définitive du ticket
         if (interaction.customId === 'close_ticket') {
             const log = new EmbedBuilder()
                 .setColor('#95a5a6')
@@ -378,14 +377,12 @@ client.on('interactionCreate', async (interaction) => {
             }, 5000);
         }
 
-        // Bouton d'aide pour l'ajout
         if (interaction.customId === 'ticket_add_user') {
             if (!interaction.member.roles.cache.has(CONFIG.roleStaff)) return interaction.reply({ content: '❌ Action réservée au Staff.', ephemeral: true });
             return interaction.reply({ content: '💡 Pour ajouter un joueur ou un rôle, écris simplement : `+add @Nom` dans ce salon.', ephemeral: true });
         }
     }
 
-    // --- TRAITEMENT DE LA SÉLECTION DANS LE MENU ---
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_select_type') {
         const choice = interaction.values[0];
         let prefix = "ticket";
@@ -395,17 +392,17 @@ client.on('interactionCreate', async (interaction) => {
 
         if (choice === 'ticket_mapping') {
             prefix = "🛒-mapping";
-            title = "🛒 𝘾𝙤𝙢𝙢𝙖𝙣𝙙𝙚 𝙙𝙚 𝙈𝙖𝙥𝙥𝙞𝙣𝙜 - 𝙋𝙧𝙞𝙫𝙖𝙩𝙚 𝙎𝙩𝙪𝙙𝙞𝙤";
+            title = "🛒 𝘾𝙤𝙢𝙢𝙖𝙣𝙙𝙚 𝙙𝙚 𝙈𝙖𝙥𝙥𝙞𝙣𝙜 - 𝙋𝙧𝙞𝙫𝙖𝙩𝙚 𝙎𝙩𝙪𝙙𝙞ο";
             description = `Bonjour <@${interaction.user.id}>,\n\nMerci de détailler au maximum votre demande pour nos mappeurs :\n\n📌 **Type de projet :** (Concession, Gendarmerie...)\n🎨 **Textures souhaitées :** (Fibre de carbone...)\n⚡ **Optimisation :** Souhaitez-vous une structure allégée par chunks ?`;
             color = "#ffd700";
         } else if (choice === 'ticket_paiement') {
             prefix = "💳-paiement";
-            title = "💳 𝙎𝙚𝙧𝙫𝙞𝙘𝙚 𝙙𝙚 𝙋𝙖𝙞𝙚𝙢𝙚𝙣𝙩 & 𝙁𝙖𝙘𝙩𝙪𝙧𝙖𝙩𝙞𝙤𝙣";
+            title = "💳 𝙎𝙚𝙧𝙫𝙞𝙘𝙚 𝙙𝙚 𝙋𝙖𝙞𝙚𝙢𝙚𝙣𝙩 & 𝙁𝙖𝙘𝙩𝙪𝙧𝙖𝙩𝙞ο𝙣";
             description = `Bonjour <@${interaction.user.id}>,\n\nPour procéder à la facturation de votre mapping :\n• Veuillez rappeler le tarif conclu.\n• Un membre du pôle commercial va vous transmettre les liens officiels.`;
             color = "#2ecc71";
         } else if (choice === 'ticket_recrutement') {
             prefix = "🛠️-recrutement";
-            title = "🛠️ 𝙍𝙚𝙘𝙧𝙪𝙩𝙚𝙢𝙚𝙣𝙩 • 𝙋𝙧𝙞𝙫𝙖𝙩𝙚 𝙎𝙩𝙪𝙙𝙞𝙤";
+            title = "🛠️ 𝙍𝙚𝙘𝙧𝙪𝙩𝙚𝙢𝙚𝙣𝙩 • 𝙋𝙧𝙞𝙫𝙖𝙩𝙚 𝙎𝙩𝙪𝙙𝙞ο";
             description = `Bonjour <@${interaction.user.id}>,\n\nMerci de l'intérêt porté à notre équipe !\n• Veuillez envoyer des images de vos anciens mappings.\n• Indiquez vos motivations.`;
             color = "#3498db";
         }
