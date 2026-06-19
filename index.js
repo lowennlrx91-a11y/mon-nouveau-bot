@@ -12,7 +12,19 @@ const {
     AttachmentBuilder
 } = require('discord.js');
 const http = require('http');
-const { createCanvas, loadImage } = require('@napi-rs/canvas');
+
+// 🎨 Chargement sécurisé de la librairie canvas (génération d'image de bienvenue)
+// Si ce module n'est pas installé ou plante au chargement, le bot continue de
+// fonctionner normalement (règlement, tickets, logs...) et utilisera juste un
+// affichage de bienvenue simplifié, sans image générée.
+let canvasDisponible = true;
+let createCanvas, loadImage;
+try {
+    ({ createCanvas, loadImage } = require('@napi-rs/canvas'));
+} catch (err) {
+    canvasDisponible = false;
+    console.error("⚠️ Impossible de charger '@napi-rs/canvas'. Vérifie que la dépendance est bien dans package.json et installée. Le système de bienvenue utilisera un mode simplifié. Détail :", err.message);
+}
 
 // ==========================================
 // 🛡️ SÉCURITÉ ANTI-COUPURE RENDER (PORT BINDING)
@@ -41,7 +53,7 @@ const CONFIG = {
     categorieTickets: "1465393296410153117",   
     categorieLogs: "1465393296410153117",       
     roleStaff: "1465396190395764838",
-    salonBienvenue: "1465390482837209221"
+    salonBienvenue: "METS_ICI_L_ID_DU_SALON_BIENVENUE"
 };
 
 // 🖼️ URL DE TON IMAGE CONFIGURÉE AUTOMATIQUEMENT
@@ -301,9 +313,6 @@ client.on('guildMemberAdd', async (member) => {
             return;
         }
 
-        const bufferImage = await genererImageBienvenue(member);
-        const attachment = new AttachmentBuilder(bufferImage, { name: 'bienvenue.png' });
-
         const embedBienvenue = new EmbedBuilder()
             .setColor('#3498db')
             .setTitle('🎉 Nouveau membre sur Private Studio (PS) !')
@@ -316,11 +325,27 @@ client.on('guildMemberAdd', async (member) => {
                 { name: '👤 Pseudo', value: `${member.user.tag}`, inline: true },
                 { name: '📅 Arrivé le', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
             )
-            .setImage('attachment://bienvenue.png')
             .setFooter({ text: '💎 Private Studio (PS) • Bienvenue parmi nous', iconURL: member.guild.iconURL() })
             .setTimestamp();
 
-        await salonBienvenue.send({ content: `${member}`, embeds: [embedBienvenue], files: [attachment] });
+        let bufferImage = null;
+        if (canvasDisponible) {
+            try {
+                bufferImage = await genererImageBienvenue(member);
+            } catch (err) {
+                console.error("⚠️ Génération de l'image de bienvenue impossible, passage en mode simplifié :", err.message);
+                bufferImage = null;
+            }
+        }
+
+        if (bufferImage) {
+            const attachment = new AttachmentBuilder(bufferImage, { name: 'bienvenue.png' });
+            embedBienvenue.setImage('attachment://bienvenue.png');
+            await salonBienvenue.send({ content: `${member}`, embeds: [embedBienvenue], files: [attachment] });
+        } else {
+            embedBienvenue.setThumbnail(member.user.displayAvatarURL({ extension: 'png', size: 512 }));
+            await salonBienvenue.send({ content: `${member}`, embeds: [embedBienvenue] });
+        }
 
         const log = new EmbedBuilder()
             .setColor('#3498db')
@@ -405,8 +430,6 @@ client.on('interactionCreate', async (interaction) => {
             }
 
             await interaction.deferUpdate();
-            pendingTickets.delete(ticketId);
-            await interaction.message.delete().catch(() => {});
 
             try {
                 const ticketChannel = await interaction.guild.channels.create({
@@ -419,6 +442,10 @@ client.on('interactionCreate', async (interaction) => {
                         { id: CONFIG.roleStaff, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] }
                     ],
                 });
+
+                // On ne retire la demande et le message staff qu'une fois le salon créé avec succès
+                pendingTickets.delete(ticketId);
+                await interaction.message.delete().catch(() => {});
 
                 const infoEmbed = new EmbedBuilder()
                     .setColor(data.color)
@@ -441,7 +468,12 @@ client.on('interactionCreate', async (interaction) => {
                 await envoyerLog(interaction.guild, log);
 
             } catch (error) {
-                console.error(error);
+                console.error("Erreur lors de la création du salon de ticket :", error);
+                // La demande reste en attente (non supprimée) pour permettre une nouvelle tentative
+                await interaction.followUp({
+                    content: `❌ **Erreur lors de la création du salon de ticket.** La demande reste en attente, tu peux réessayer.\nVérifie que la catégorie de tickets existe bien et que le bot a la permission "Gérer les salons".\n\`\`\`${error.message}\`\`\``,
+                    ephemeral: true
+                }).catch(() => {});
             }
         }
 
@@ -603,6 +635,16 @@ client.on('messageCreate', async (message) => {
             return message.channel.send(`👤 ${targetMember} a été **retiré** du ticket.`);
         }
     }
+});
+
+// ==========================================
+// 🛡️ FILETS DE SÉCURITÉ GLOBAUX (ÉVITE LE CRASH COMPLET DU BOT)
+// ==========================================
+process.on('unhandledRejection', (error) => {
+    console.error('⚠️ Erreur (promesse non gérée) :', error);
+});
+process.on('uncaughtException', (error) => {
+    console.error('⚠️ Erreur non interceptée :', error);
 });
 
 client.login(process.env.TOKEN);
