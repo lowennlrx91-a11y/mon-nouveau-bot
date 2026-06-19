@@ -8,9 +8,11 @@ const {
     ChannelType, 
     PermissionFlagsBits,
     StringSelectMenuBuilder,
-    StringSelectMenuOptionBuilder
+    StringSelectMenuOptionBuilder,
+    AttachmentBuilder
 } = require('discord.js');
 const http = require('http');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 
 // ==========================================
 // 🛡️ SÉCURITÉ ANTI-COUPURE RENDER (PORT BINDING)
@@ -39,7 +41,7 @@ const CONFIG = {
     categorieTickets: "1465393296410153117",   
     categorieLogs: "1465393296410153117",       
     roleStaff: "1465396190395764838",
-    salonBienvenue: "1465390482837209221"
+    salonBienvenue: "METS_ICI_L_ID_DU_SALON_BIENVENUE"
 };
 
 // 🖼️ URL DE TON IMAGE CONFIGURÉE AUTOMATIQUEMENT
@@ -233,8 +235,63 @@ async function initialiserTicketPanelAutomatique() {
 }
 
 // ==========================================
-// FONCTIONNALITÉ 3 : MESSAGE DE BIENVENUE (NOUVEAU MEMBRE)
+// FONCTIONNALITÉ 3 : MESSAGE DE BIENVENUE (IMAGE GÉNÉRÉE)
 // ==========================================
+
+// 🎨 Génère l'image de bienvenue : fond personnalisé + avatar circulaire + texte
+async function genererImageBienvenue(member) {
+    const largeur = 1024;
+    const hauteur = 500;
+    const canvas = createCanvas(largeur, hauteur);
+    const ctx = canvas.getContext('2d');
+
+    // 1. Fond (l'image configurée en haut du fichier : URL_IMAGE_PANEL)
+    const reponseFond = await fetch(URL_IMAGE_PANEL);
+    const fond = await loadImage(Buffer.from(await reponseFond.arrayBuffer()));
+    ctx.drawImage(fond, 0, 0, largeur, hauteur);
+
+    // 2. Voile sombre pour que le texte reste lisible par-dessus l'image
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, 0, largeur, hauteur);
+
+    // 3. Avatar du membre, découpé en cercle
+    const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 256 });
+    const reponseAvatar = await fetch(avatarUrl);
+    const avatar = await loadImage(Buffer.from(await reponseAvatar.arrayBuffer()));
+
+    const tailleAvatar = 180;
+    const centreX = largeur / 2;
+    const centreY = hauteur / 2 - 50;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(centreX, centreY, tailleAvatar / 2, 0, Math.PI * 2, true);
+    ctx.closePath();
+    ctx.clip();
+    ctx.drawImage(avatar, centreX - tailleAvatar / 2, centreY - tailleAvatar / 2, tailleAvatar, tailleAvatar);
+    ctx.restore();
+
+    // Bordure bleue autour de l'avatar
+    ctx.beginPath();
+    ctx.arc(centreX, centreY, tailleAvatar / 2, 0, Math.PI * 2, true);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = '#3498db';
+    ctx.stroke();
+
+    // 4. Texte "BIENVENUE" + pseudo du membre
+    ctx.textAlign = 'center';
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 54px sans-serif';
+    ctx.fillText('BIENVENUE', centreX, centreY + 135);
+
+    ctx.fillStyle = '#3498db';
+    ctx.font = 'bold 38px sans-serif';
+    ctx.fillText(member.user.username, centreX, centreY + 185);
+
+    return canvas.toBuffer('image/png');
+}
+
 client.on('guildMemberAdd', async (member) => {
     try {
         const salonBienvenue = member.guild.channels.cache.get(CONFIG.salonBienvenue);
@@ -244,30 +301,29 @@ client.on('guildMemberAdd', async (member) => {
             return;
         }
 
-        const avatarUrl = member.user.displayAvatarURL({ extension: 'png', size: 512 });
+        const bufferImage = await genererImageBienvenue(member);
+        const attachment = new AttachmentBuilder(bufferImage, { name: 'bienvenue.png' });
 
         const embedBienvenue = new EmbedBuilder()
-            .setColor('#ffd700')
+            .setColor('#3498db')
             .setTitle('🎉 Nouveau membre sur Private Studio (PS) !')
             .setDescription(
                 `Bienvenue ${member} sur le serveur de la communauté **Private Studio** ! 💎\n\n` +
                 `Nous comptons désormais **${member.guild.memberCount}** membres.\n\n` +
                 `📜 N'oublie pas de consulter le <#${CONFIG.salonReglement}> pour débloquer l'accès complet au serveur.`
             )
-            .setThumbnail(avatarUrl)
             .addFields(
                 { name: '👤 Pseudo', value: `${member.user.tag}`, inline: true },
-                { name: '📅 Arrivé le', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true },
-                { name: '🖼️ Lien de l\'avatar', value: `[Voir l'image](${avatarUrl})`, inline: true }
+                { name: '📅 Arrivé le', value: `<t:${Math.floor(Date.now() / 1000)}:F>`, inline: true }
             )
-            .setImage(avatarUrl)
+            .setImage('attachment://bienvenue.png')
             .setFooter({ text: '💎 Private Studio (PS) • Bienvenue parmi nous', iconURL: member.guild.iconURL() })
             .setTimestamp();
 
-        await salonBienvenue.send({ content: `${member}`, embeds: [embedBienvenue] });
+        await salonBienvenue.send({ content: `${member}`, embeds: [embedBienvenue], files: [attachment] });
 
         const log = new EmbedBuilder()
-            .setColor('#ffd700')
+            .setColor('#3498db')
             .setTitle('📥 Nouveau Membre')
             .setDescription(`${member} (\`${member.id}\`) vient de rejoindre le serveur.`)
             .setTimestamp();
