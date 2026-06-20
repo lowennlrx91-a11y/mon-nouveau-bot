@@ -9,7 +9,6 @@ const {
     PermissionFlagsBits,
     StringSelectMenuBuilder,
     StringSelectMenuOptionBuilder,
-    UserSelectMenuBuilder,
     AttachmentBuilder
 } = require('discord.js');
 const http = require('http');
@@ -54,13 +53,7 @@ const CONFIG = {
     categorieTickets: "1465393296410153117",   
     categorieLogs: "1465393296410153117",       
     roleStaff: "1465396190395764838",
-    salonBienvenue: "1465390482837209221",
-
-    // 🔐 SYSTÈME DE VÉRIFICATION (CAPTCHA ANTI-RAID)
-    // Rôle donné automatiquement à l'arrivée, qui ne donne accès qu'au salon de vérification
-    roleNonVerifie: "1483717086143582301",
-    // Salon visible uniquement par les membres non-vérifiés, où se trouve la question
-    salonVerification: "1483717087682887740"
+    salonBienvenue: "METS_ICI_L_ID_DU_SALON_BIENVENUE"
 };
 
 // 🖼️ URL DE TON IMAGE CONFIGURÉE AUTOMATIQUEMENT
@@ -68,18 +61,6 @@ const URL_IMAGE_PANEL = "https://i.imgur.com/8aJWlhy.png";
 
 // Stockage temporaire des demandes de tickets en attente de validation
 const pendingTickets = new Map();
-
-// Stockage temporaire du nombre de mauvaises réponses au captcha (pour repérer un raid de bots)
-const echecsVerification = new Map();
-
-// ❓ QUESTION DE VÉRIFICATION (CAPTCHA ANTI-RAID)
-const QUESTION_VERIFICATION = "Que veux-tu faire dans cette communauté ?";
-const REPONSES_VERIFICATION = [
-    { texte: "Découvrir les fabuleux mappings 🛒", correcte: true },
-    { texte: "Spammer des liens douteux 🔗", correcte: false },
-    { texte: "Vendre des comptes et des V-Bucks 💸", correcte: false },
-    { texte: "Aucune idée, je clique au hasard 🎲", correcte: false }
-];
 
 client.once('ready', async () => {
     console.log('///////////////////////////////////////////////////////');
@@ -95,8 +76,6 @@ client.once('ready', async () => {
     await initialiserSalonStaff();
     await initialiserReglement();
     await initialiserTicketPanelAutomatique();
-    await initialiserVerification();
-    await verrouillerSalonsPourNonVerifies();
 });
 
 // ==========================================
@@ -268,109 +247,6 @@ async function initialiserTicketPanelAutomatique() {
 }
 
 // ==========================================
-// FONCTIONNALITÉ 3bis : VÉRIFICATION / CAPTCHA ANTI-RAID
-// ==========================================
-
-// Envoie (ou ré-envoie si besoin) le panel de vérification dans le salon dédié
-async function initialiserVerification() {
-    try {
-        if (!CONFIG.salonVerification || CONFIG.salonVerification.startsWith('METS_ICI')) {
-            console.log("⚠️ CONFIG.salonVerification n'est pas configuré, le système de vérification est désactivé.");
-            return;
-        }
-
-        const channel = await client.channels.fetch(CONFIG.salonVerification).catch(() => null);
-        if (!channel) return console.log("⚠️ Salon de vérification introuvable (vérifie CONFIG.salonVerification).");
-
-        const messages = await channel.messages.fetch({ limit: 50 });
-        const besoinDeNettoyer = messages.size !== 1 || messages.first().author.id !== client.user.id;
-
-        if (besoinDeNettoyer) {
-            console.log("🧹 Nettoyage de l'ancien panel de vérification...");
-            if (messages.size > 0) {
-                await channel.bulkDelete(messages, true).catch(() => {
-                    messages.forEach(async (m) => await m.delete().catch(() => {}));
-                });
-            }
-
-            // 🔀 On mélange l'ordre des réponses à chaque (re)génération du panel,
-            // pour empêcher un bot de raid de toujours cliquer "le 1er bouton"
-            const reponsesMelangees = [...REPONSES_VERIFICATION].sort(() => Math.random() - 0.5);
-
-            const numeros = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'];
-            const row = new ActionRowBuilder();
-            reponsesMelangees.forEach((reponse, index) => {
-                row.addComponents(
-                    new ButtonBuilder()
-                        // Le style reste neutre (Secondary) pour ne JAMAIS donner d'indice visuel sur la bonne réponse
-                        .setCustomId(`captcha_${reponse.correcte ? 'bonne' : 'mauvaise'}_${index}`)
-                        .setLabel(reponse.texte)
-                        .setEmoji(numeros[index])
-                        .setStyle(ButtonStyle.Secondary)
-                );
-            });
-
-            const embed = new EmbedBuilder()
-                .setColor('#9b59b6')
-                .setTitle('🔐 𝙑𝙀́𝙍𝙄𝙁𝙄𝘾𝘼𝙏𝙄𝙊𝙉 • 𝙋𝙍𝙄𝙑𝘼𝙏𝙀 𝙎𝙏𝙐𝘿𝙄𝙊')
-                .setDescription(
-                    `Bienvenue sur **Private Studio** ! 👋\n\n` +
-                    `Pour des raisons de sécurité (anti-bot / anti-raid), merci de répondre à la question suivante avant d'accéder au reste du serveur :\n\n` +
-                    `❓ **${QUESTION_VERIFICATION}**\n\n` +
-                    `👇 *Clique sur la bonne réponse parmi les 4 boutons ci-dessous.*`
-                )
-                .setFooter({ text: '💎 Private Studio (PS) • Vérification automatique', iconURL: client.user.displayAvatarURL() });
-
-            await channel.send({ embeds: [embed], components: [row] });
-            console.log("➡️ Panel de vérification (captcha) mis en place !");
-        }
-    } catch (error) {
-        console.error("Erreur initialisation vérification :", error);
-    }
-}
-
-// Verrouille tous les salons existants pour le rôle "non-vérifié", sauf le salon de vérification
-async function verrouillerSalonsPourNonVerifies() {
-    try {
-        if (!CONFIG.roleNonVerifie || CONFIG.roleNonVerifie.startsWith('METS_ICI')) {
-            console.log("⚠️ CONFIG.roleNonVerifie n'est pas configuré, le verrouillage des salons est ignoré.");
-            return;
-        }
-
-        const guild = client.guilds.cache.first();
-        if (!guild) return;
-
-        const roleNonVerifie = guild.roles.cache.get(CONFIG.roleNonVerifie);
-        if (!roleNonVerifie) {
-            console.error(`⚠️ Rôle non-vérifié introuvable (ID configuré : ${CONFIG.roleNonVerifie}).`);
-            return;
-        }
-
-        const salons = guild.channels.cache.filter(c =>
-            c.type === ChannelType.GuildText ||
-            c.type === ChannelType.GuildVoice ||
-            c.type === ChannelType.GuildCategory ||
-            c.type === ChannelType.GuildAnnouncement
-        );
-
-        for (const [, salon] of salons) {
-            const estLeSalonDeVerification = salon.id === CONFIG.salonVerification;
-            try {
-                await salon.permissionOverwrites.edit(roleNonVerifie, {
-                    ViewChannel: estLeSalonDeVerification
-                });
-            } catch (err) {
-                console.error(`⚠️ Impossible de configurer les permissions du salon "${salon.name}" :`, err.message);
-            }
-        }
-
-        console.log("🔐 Verrouillage des salons pour les membres non-vérifiés terminé.");
-    } catch (error) {
-        console.error("Erreur lors du verrouillage des salons :", error);
-    }
-}
-
-// ==========================================
 // FONCTIONNALITÉ 3 : MESSAGE DE BIENVENUE (IMAGE GÉNÉRÉE)
 // ==========================================
 
@@ -430,19 +306,6 @@ async function genererImageBienvenue(member) {
 
 client.on('guildMemberAdd', async (member) => {
     try {
-        // 🔐 Attribution automatique du rôle "non-vérifié" : le membre n'a accès
-        // qu'au salon de vérification tant qu'il n'a pas répondu correctement au captcha.
-        if (CONFIG.roleNonVerifie && !CONFIG.roleNonVerifie.startsWith('METS_ICI')) {
-            const roleNonVerifie = member.guild.roles.cache.get(CONFIG.roleNonVerifie);
-            if (roleNonVerifie) {
-                await member.roles.add(roleNonVerifie).catch(err =>
-                    console.error("⚠️ Impossible d'attribuer le rôle non-vérifié :", err.message)
-                );
-            } else {
-                console.error(`⚠️ Rôle non-vérifié introuvable (ID configuré : ${CONFIG.roleNonVerifie})`);
-            }
-        }
-
         const salonBienvenue = member.guild.channels.cache.get(CONFIG.salonBienvenue);
 
         if (!salonBienvenue) {
@@ -456,7 +319,7 @@ client.on('guildMemberAdd', async (member) => {
             .setDescription(
                 `Bienvenue ${member} sur le serveur de la communauté **Private Studio** ! 💎\n\n` +
                 `Nous comptons désormais **${member.guild.memberCount}** membres.\n\n` +
-                `🔐 Rends-toi dans le salon de vérification pour répondre au captcha et débloquer l'accès au serveur, puis consulte le <#${CONFIG.salonReglement}> pour débloquer l'accès complet.`
+                `📜 N'oublie pas de consulter le <#${CONFIG.salonReglement}> pour débloquer l'accès complet au serveur.`
             )
             .addFields(
                 { name: '👤 Pseudo', value: `${member.user.tag}`, inline: true },
@@ -496,74 +359,13 @@ client.on('guildMemberAdd', async (member) => {
     }
 });
 
-// 🔐 Verrouille automatiquement tout nouveau salon créé pour les membres non-vérifiés
-client.on('channelCreate', async (channel) => {
-    try {
-        if (!channel.guild) return;
-        if (!CONFIG.roleNonVerifie || CONFIG.roleNonVerifie.startsWith('METS_ICI')) return;
-        if (channel.id === CONFIG.salonVerification) return;
-
-        const roleNonVerifie = channel.guild.roles.cache.get(CONFIG.roleNonVerifie);
-        if (!roleNonVerifie) return;
-
-        await channel.permissionOverwrites.edit(roleNonVerifie, { ViewChannel: false }).catch(() => {});
-    } catch (error) {
-        console.error("Erreur lors du verrouillage automatique d'un nouveau salon :", error);
-    }
-});
-
 // ==========================================
 // MANAGEMENT DES INTERACTIONS (BOUTONS & MENUS + LOGS)
 // ==========================================
 client.on('interactionCreate', async (interaction) => {
     
     if (interaction.isButton()) {
-
-        // 🔐 RÉPONSE AU CAPTCHA DE VÉRIFICATION
-        if (interaction.customId.startsWith('captcha_')) {
-            const estCorrecte = interaction.customId.startsWith('captcha_bonne_');
-            const roleNonVerifie = CONFIG.roleNonVerifie ? interaction.guild.roles.cache.get(CONFIG.roleNonVerifie) : null;
-
-            if (roleNonVerifie && !interaction.member.roles.cache.has(roleNonVerifie.id)) {
-                return interaction.reply({ content: 'ℹ️ Tu es déjà vérifié(e), tu as accès au serveur !', ephemeral: true });
-            }
-
-            if (estCorrecte) {
-                try {
-                    if (roleNonVerifie) await interaction.member.roles.remove(roleNonVerifie);
-                    echecsVerification.delete(interaction.user.id);
-
-                    const log = new EmbedBuilder()
-                        .setColor('#2ecc71')
-                        .setTitle('🔓 Vérification Réussie')
-                        .setDescription(`${interaction.user} (\`${interaction.user.id}\`) a réussi la vérification anti-raid.`)
-                        .setTimestamp();
-                    await envoyerLog(interaction.guild, log);
-
-                    return interaction.reply({
-                        content: '✅ **Bonne réponse !** Tu as maintenant accès au serveur. Rends-toi dans le salon règlement pour débloquer les Discussions 💎',
-                        ephemeral: true
-                    });
-                } catch (err) {
-                    return interaction.reply({ content: "❌ Une erreur est survenue lors de l'attribution de tes accès, contacte un membre du staff.", ephemeral: true });
-                }
-            } else {
-                const tentatives = (echecsVerification.get(interaction.user.id) || 0) + 1;
-                echecsVerification.set(interaction.user.id, tentatives);
-
-                if (tentatives === 3) {
-                    const log = new EmbedBuilder()
-                        .setColor('#e67e22')
-                        .setTitle('⚠️ Plusieurs Échecs de Vérification')
-                        .setDescription(`${interaction.user} (\`${interaction.user.id}\`) a échoué la vérification **${tentatives} fois**. Surveillance recommandée (possible bot de raid).`)
-                        .setTimestamp();
-                    await envoyerLog(interaction.guild, log);
-                }
-
-                return interaction.reply({ content: '❌ **Mauvaise réponse...** Relis bien la question et réessaie !', ephemeral: true });
-            }
-        }
-
+        
         if (interaction.customId === 'accept_rules') {
             await interaction.deferReply({ ephemeral: true });
             const role = interaction.guild.roles.cache.get(CONFIG.roleReglement);
@@ -621,16 +423,11 @@ client.on('interactionCreate', async (interaction) => {
             const ticketId = interaction.customId.replace('staff_approve_', '');
             const data = pendingTickets.get(ticketId);
 
-            if (!data) return interaction.reply({ content: '❌ Cette demande a expiré, a déjà été traitée, ou est en cours de traitement.', ephemeral: true });
+            if (!data) return interaction.reply({ content: '❌ Cette demande a expiré ou a déjà été traitée.', ephemeral: true });
             
             if (!interaction.member.roles.cache.has(CONFIG.roleStaff) && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
                 return interaction.reply({ content: '❌ Seul le staff peut valider les demandes.', ephemeral: true });
             }
-
-            // 🔒 CORRECTIF : on retire IMMÉDIATEMENT la demande de la liste d'attente.
-            // Avant ce correctif, un double-clic rapide sur "Accepter" pouvait déclencher
-            // deux créations de salon en parallèle pour la même demande.
-            pendingTickets.delete(ticketId);
 
             await interaction.deferUpdate();
 
@@ -646,17 +443,18 @@ client.on('interactionCreate', async (interaction) => {
                     ],
                 });
 
+                // On ne retire la demande et le message staff qu'une fois le salon créé avec succès
+                pendingTickets.delete(ticketId);
                 await interaction.message.delete().catch(() => {});
 
                 const infoEmbed = new EmbedBuilder()
                     .setColor(data.color)
                     .setTitle(data.title)
-                    .setDescription(`${data.description}\n\n🛠 *Gestion du ticket via les boutons ci-dessous, ou les commandes :*\n👤 \`+add @Pseudo\`\n❌ \`-remove @Pseudo\``)
+                    .setDescription(`${data.description}\n\n🛠 *Commandes de gestion :*\n👤 \`+add @Pseudo\`\n❌ \`-remove @Pseudo\``)
                     .setFooter({ text: '💎 Private Studio (PS) • Système Securisé' });
 
                 const actionRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder().setCustomId(`ticket_add_user`).setLabel('Ajouter').setStyle(ButtonStyle.Secondary).setEmoji('➕'),
-                    new ButtonBuilder().setCustomId(`ticket_remove_user`).setLabel('Retirer').setStyle(ButtonStyle.Secondary).setEmoji('➖'),
                     new ButtonBuilder().setCustomId('close_ticket').setLabel('Fermer le ticket').setStyle(ButtonStyle.Danger).setEmoji('🔒')
                 );
 
@@ -671,8 +469,7 @@ client.on('interactionCreate', async (interaction) => {
 
             } catch (error) {
                 console.error("Erreur lors de la création du salon de ticket :", error);
-                // ♻️ On remet la demande en attente pour permettre une nouvelle tentative
-                pendingTickets.set(ticketId, data);
+                // La demande reste en attente (non supprimée) pour permettre une nouvelle tentative
                 await interaction.followUp({
                     content: `❌ **Erreur lors de la création du salon de ticket.** La demande reste en attente, tu peux réessayer.\nVérifie que la catégorie de tickets existe bien et que le bot a la permission "Gérer les salons".\n\`\`\`${error.message}\`\`\``,
                     ephemeral: true
@@ -715,65 +512,9 @@ client.on('interactionCreate', async (interaction) => {
             }, 5000);
         }
 
-        if (interaction.customId === 'ticket_add_user' || interaction.customId === 'ticket_remove_user') {
-            if (!interaction.member.roles.cache.has(CONFIG.roleStaff) && !interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-                return interaction.reply({ content: '❌ Action réservée au Staff.', ephemeral: true });
-            }
-
-            const estAjout = interaction.customId === 'ticket_add_user';
-
-            const userSelect = new UserSelectMenuBuilder()
-                .setCustomId(estAjout ? 'ticket_select_user_add' : 'ticket_select_user_remove')
-                .setPlaceholder(estAjout ? 'Choisis un membre à ajouter au ticket...' : 'Choisis un membre à retirer du ticket...')
-                .setMinValues(1)
-                .setMaxValues(1);
-
-            const row = new ActionRowBuilder().addComponents(userSelect);
-            return interaction.reply({
-                content: estAjout ? '👤 Sélectionne le membre à ajouter :' : '👤 Sélectionne le membre à retirer :',
-                components: [row],
-                ephemeral: true
-            });
-        }
-    }
-
-    if (interaction.isUserSelectMenu()) {
-        if (interaction.customId === 'ticket_select_user_add' || interaction.customId === 'ticket_select_user_remove') {
-            const estAjout = interaction.customId === 'ticket_select_user_add';
-            const targetId = interaction.values[0];
-
-            try {
-                if (estAjout) {
-                    await interaction.channel.permissionOverwrites.edit(targetId, {
-                        ViewChannel: true,
-                        SendMessages: true,
-                        ReadMessageHistory: true
-                    });
-                } else {
-                    await interaction.channel.permissionOverwrites.delete(targetId);
-                }
-
-                const log = new EmbedBuilder()
-                    .setColor(estAjout ? '#3498db' : '#e67e22')
-                    .setTitle(estAjout ? '👤 Membre Ajouté au Ticket' : '👤 Membre Retiré du Ticket')
-                    .setDescription(`**Salon :** ${interaction.channel}\n**Action par :** ${interaction.user}\n**Membre concerné :** <@${targetId}>`)
-                    .setTimestamp();
-                await envoyerLog(interaction.guild, log);
-
-                await interaction.update({
-                    content: estAjout ? `✅ <@${targetId}> a été ajouté au ticket.` : `✅ <@${targetId}> a été retiré du ticket.`,
-                    components: []
-                });
-
-                return interaction.channel.send(
-                    estAjout
-                        ? `👤 <@${targetId}> a été **ajouté** au ticket par ${interaction.user}.`
-                        : `👤 <@${targetId}> a été **retiré** du ticket par ${interaction.user}.`
-                );
-            } catch (error) {
-                console.error("Erreur lors de la gestion des membres du ticket :", error);
-                return interaction.update({ content: "❌ Une erreur est survenue, vérifie les permissions du bot.", components: [] }).catch(() => {});
-            }
+        if (interaction.customId === 'ticket_add_user') {
+            if (!interaction.member.roles.cache.has(CONFIG.roleStaff)) return interaction.reply({ content: '❌ Action réservée au Staff.', ephemeral: true });
+            return interaction.reply({ content: '💡 Pour ajouter un joueur ou un rôle, écris simplement : `+add @Nom` dans ce salon.', ephemeral: true });
         }
     }
 
