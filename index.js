@@ -54,13 +54,13 @@ const CONFIG = {
     categorieTickets: "1465393296410153117",   
     categorieLogs: "1465393296410153117",       
     roleStaff: "1465396190395764838",
-    salonBienvenue: "METS_ICI_L_ID_DU_SALON_BIENVENUE",
+    salonBienvenue: "1465390482837209221",
 
     // 🔐 SYSTÈME DE VÉRIFICATION (CAPTCHA ANTI-RAID)
     // Rôle donné automatiquement à l'arrivée, qui ne donne accès qu'au salon de vérification
-    roleNonVerifie: "METS_ICI_L_ID_DU_ROLE_NON_VERIFIE",
+    roleNonVerifie: "1483717086143582301",
     // Salon visible uniquement par les membres non-vérifiés, où se trouve la question
-    salonVerification: "METS_ICI_L_ID_DU_SALON_VERIFICATION"
+    salonVerification: "1483717087682887740"
 };
 
 // 🖼️ URL DE TON IMAGE CONFIGURÉE AUTOMATIQUEMENT
